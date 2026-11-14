@@ -1,0 +1,31 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>GLOW BINGO: проверка входа</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font:500 16px/1.45 -apple-system,Helvetica,Arial,sans-serif;background:linear-gradient(180deg,#FFF2F9,#FFD0EC);color:#4A2040;min-height:100vh;padding:24px 18px}
+.c{max-width:420px;margin:0 auto;background:#fff;border-radius:24px;padding:20px;box-shadow:0 10px 24px -12px rgba(176,76,134,.6)}
+h1{font:italic 700 26px Georgia,serif;color:#6B1A4A;margin:0 0 8px}
+button{width:100%;min-height:52px;border:0;border-radius:99px;font:800 15px -apple-system,sans-serif;color:#4A2040;background:linear-gradient(100deg,#F7A8CF,#FBCFE5 40%,#F7A8CF 68%,#B04C86);margin:12px 0 0}
+button.g{background:#fff;border:1.5px solid #F7A8CF}pre{white-space:pre-wrap;word-break:break-word;background:#FFF2F9;border-radius:14px;padding:12px;font-size:13px}
+</style></head><body><div class="c"><h1>Проверка входа через Telegram</h1>
+<p id="s">Нажми кнопку, откроется Telegram. Нажми «Старт» в боте, поделись номером или пропусти, потом вернись сюда.</p>
+<button id="go">Войти через Telegram</button><button id="out" class="g" style="display:none">Выйти</button><pre id="r" style="display:none"></pre></div>
+<script>
+const URL_='https://cijrhafinrhsaorgwtcf.supabase.co',KEY='sb_publishable_vLCYgNMcVt0wbSDeVKwhYg_gd-UV_Tw';
+const sb=supabase.createClient(URL_,KEY);
+const $=i=>document.getElementById(i);const say=t=>$('s').textContent=t;
+const fn=b=>fetch(URL_+'/functions/v1/tg-login',{method:'POST',headers:{'Content-Type':'application/json',apikey:KEY},body:JSON.stringify(b)}).then(r=>r.json());
+let timer=null;
+async function show(){const{data:{user}}=await sb.auth.getUser();if(!user){$('out').style.display='none';return false}
+ const{data:p,error}=await sb.from('participants').select('*').maybeSingle();
+ $('out').style.display='block';$('r').style.display='block';
+ $('r').textContent='Вход выполнен ✓\nTelegram-ID: '+(user.app_metadata||{}).tg_id+'\nНик: '+((user.app_metadata||{}).tg_username||'нет')+'\nУчастница в базе: '+(p?'да ('+p.name+')':'нет, нужна регистрация')+(error?'\nОшибка чтения: '+error.message:'');
+ say('Всё работает. Это проверочная страница.');return true}
+function poll(tok){clearInterval(timer);let n=0;timer=setInterval(async()=>{n++;if(n>150){clearInterval(timer);say('Время вышло. Нажми кнопку ещё раз.');return}
+ try{const r=await fn({action:'poll',token:tok});
+  if(r.status==='ok'){clearInterval(timer);localStorage.removeItem('tok');await sb.auth.setSession({access_token:r.access_token,refresh_token:r.refresh_token});show()}
+  else if(r.status==='expired'||r.status==='used'||r.status==='none'){clearInterval(timer);localStorage.removeItem('tok');say('Ссылка устарела. Нажми кнопку ещё раз.')}
+  else if(r.error){clearInterval(timer);say('Ошибка сервера: '+r.error)}}catch(e){}},2000)}
+$('go').onclick=async()=>{try{say('Готовлю вход…');const r=await fn({action:'start'});if(!r.token)throw new Error(r.error||'нет токена');localStorage.setItem('tok',r.token);say('Открываю Telegram… После «Старт» вернись на эту страницу.');poll(r.token);location.href=r.bot_url}catch(e){say('Ошибка: '+e.message)}};
+$('out').onclick=async()=>{await sb.auth.signOut();$('r').style.display='none';say('Ты вышла.');$('out').style.display='none'};
+show().then(ok=>{const t=localStorage.getItem('tok');if(!ok&&t){say('Жду подтверждения в Telegram…');poll(t)}});
+</script></body></html>
